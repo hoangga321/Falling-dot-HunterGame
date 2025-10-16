@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Falling Dot Hunter</title>
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="css/style.css?v=2.1" />
+</head>
+<body>
+  <header class="topbar" id="topbar">
+    <h1 id="brandTitle">Falling Dot Hunter</h1>
+
+    <div class="controls">
+      <div class="dropdown" id="langDropdown">
+        <button id="langBtn" class="btn"><span id="langBtnLabel">한국어</span><span class="caret">▾</span></button>
+        <ul class="menu" id="langMenu" aria-label="Language">
+          <li data-lang="ko">한국어</li>
+          <li data-lang="en">English</li>
+        </ul>
+      </div>
+
+      <label class="field">
+        <span id="diffLabel">난이도</span>
+        <select id="difficulty" class="select">
+          <option value="easy">Easy</option>
+          <option value="normal" selected>Normal</option>
+          <option value="hard">Hard</option>
+        </select>
+      </label>
+
+      <div class="dropdown" id="modsDropdown">
+        <button class="btn"><span>Modifiers</span><span class="caret">▾</span></button>
+        <div class="menu mods">
+          <div class="modsGroup">
+            <div class="modsTitle">Easy</div>
+            <label class="check"><input type="checkbox" id="modSlowFall"> Slow Fall</label>
+            <label class="check"><input type="checkbox" id="modBigDots"> Big Dots</label>
+            <label class="check"><input type="checkbox" id="modExtraLife"> Extra +1 life</label>
+          </div>
+          <div class="modsGroup">
+            <div class="modsTitle">Hard</div>
+            <label class="check"><input type="checkbox" id="modTinyDots"> Tiny Dots</label>
+            <label class="check"><input type="checkbox" id="modNoFreeze"> No Freeze</label>
+            <label class="check"><input type="checkbox" id="modSuddenDeath"> Sudden Death</label>
+          </div>
+        </div>
+      </div>
+
+      <label class="field vol">
+        <span>SFX</span>
+        <input type="range" id="sfxVol" min="0" max="1" step="0.01" value="0.9">
+      </label>
+      <label class="field vol">
+        <span>Music</span>
+        <input type="range" id="musicVol" min="0" max="1" step="0.01" value="0.6">
+      </label>
+
+      <label class="field"><span id="muteLabel">Mute</span><input type="checkbox" id="muteToggle" /></label>
+      <label class="field"><span id="cbLabel">Color-blind</span><input type="checkbox" id="cbToggle" /></label>
+
+      <button id="startBtn" class="btn primary">START</button>
+      <button id="pauseBtn" class="btn">PAUSE</button>
+      <button id="resetBtn" class="btn">RESTART</button>
+    </div>
+  </header>
+
+  <main class="layout" id="layout">
+    <aside class="panel left">
+      <div class="stat">
+        <span class="left">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M12 2l2.39 4.84L20 7.27l-3.5 3.41.83 4.86L12 14.77 6.98 16.43l.92-5.36L4 7.27l5.61-.43L12 2z"/></svg>
+          <span id="scoreText">점수</span>
+        </span>
+        <strong id="score">0</strong>
+      </div>
+
+      <div class="stat">
+        <span class="left">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M12 21s-6.7-4.35-9.17-7.5C.64 10.05 2.2 6 6 6c2 0 3.2 1 4 2 0 0 1-2 4-2 3.8 0 5.36 4.05 3.17 7.5C18.7 16.65 12 21 12 21z"/></svg>
+          <span id="livesText">목숨</span>
+        </span>
+        <div id="hearts" class="hearts" role="group" aria-label="Lives" aria-live="polite"></div>
+      </div>
+
+      <div class="stat">
+        <span class="left">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M12 1a11 11 0 1 0 11 11A11 11 0 0 0 12 1Zm1 6h-2v6l5 3 1-1.73-4-2 0-6Z"/></svg>
+          <span id="timeText">시간</span>
+        </span>
+        <strong id="time">60</strong>
+      </div>
+
+      <div class="stat">
+        <span class="left">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M3 11h7V3H3v8Zm0 10h7v-8H3v8Zm11 0h7V13h-7v8ZM14 3v8h7V3h-7Z"/></svg>
+          <span id="levelText">레벨</span>
+        </span>
+        <strong id="level">1</strong>
+      </div>
+
+      <div class="stat">
+        <span class="left">
+          <svg class="ico" viewBox="0 0 24 24"><path d="M5 3h14v2H5zm0 8h14v2H5zm0 8h14v2H5z"/></svg>
+          <span id="comboText">콤보</span>
+        </span>
+        <strong><span id="combo">0</span> ×<span id="comboMul">1.0</span></strong>
+      </div>
+
+      <div class="feverBar">
+        <span id="feverText">FEVER</span>
+        <div class="bar"><div id="feverFill" class="fill" style="width:0%"></div></div>
+      </div>
+
+      <p id="hint">원을 클릭하세요! 바닥에 닿기 전에요.</p>
+      <div class="mini"><span>Seed:</span> <strong id="dailySeed">YYYYMMDD</strong></div>
+    </aside>
+
+    <section class="stage">
+      <div class="stageBox">
+        <div class="feverLogo" id="feverLogo">FEVER</div>
+
+        <canvas id="gameCanvas" width="540" height="960"></canvas>
+        <div id="banner" class="banner hidden">WAVE</div>
+
+        <div id="overlay" class="overlay hidden">
+          <div class="dialog">
+            <h2 id="overTitle">Game Over</h2>
+            <p id="overDesc">Try again!</p>
+
+            <p id="top10Msg" style="margin:6px 0 2px; font-weight:700; color:#ffd166;"></p>
+
+            <div class="results">
+              <div><span id="rLastText">Last</span>: <strong id="rLast">0</strong></div>
+              <div><span id="rHighText">High</span>: <strong id="rHigh">0</strong></div>
+            </div>
+
+            <div id="nameEntry" class="nameEntry hidden">
+              <div class="nameRow">
+                <svg class="ico" viewBox="0 0 24 24"><path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-4.33 0-8 2.17-8 5v2h16v-2c0-2.83-3.67-5-8-5Z"/></svg>
+                <label for="playerName" id="nameLabel">Your Name</label>
+              </div>
+              <input id="playerName" maxlength="12" placeholder="AAA" />
+              <button id="saveNameBtn" class="btn primary">SAVE</button>
+              <div class="miniNote ok hidden" id="savedMsg">Saved ✓</div>
+            </div>
+
+            <div class="actions">
+              <button id="againBtn" class="btn primary">PLAY AGAIN</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="panel right">
+      <div class="box collapsible" id="boxMissions">
+        <button class="collapseBtn" data-target="boxMissions">⮟</button>
+        <h3 class="titleWithIcon">
+          <svg viewBox="0 0 24 24"><path d="M3 11h7V3H3v8Zm0 10h7v-8H3v8Zm11 0h7V13h-7v8ZM14 3v8h7V3h-7Z"/></svg>
+          <span id="missionTitle">미션</span>
+        </h3>
+        <ul id="missions" class="listWithIcon">
+          <li id="mission1">콤보 ×2.0 달성</li>
+          <li id="mission2">하드 모드에서 50점</li>
+          <li id="mission3">폭탄으로 전체 제거</li>
+        </ul>
+      </div>
+
+      <div class="box collapsible" id="boxLegend">
+        <button class="collapseBtn" data-target="boxLegend">⮟</button>
+        <h3 class="titleWithIcon">
+          <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm1 15h-2v-2h2Zm0-4h-2V7h2Z"/></svg>
+          <span id="legendTitle">색상 점수</span>
+        </h3>
+        <ul class="legend">
+          <li><span class="chip red"></span> <span id="legendRed">Red ×3</span></li>
+          <li><span class="chip orange"></span> <span id="legendOrange">Orange ×2</span></li>
+          <li><span class="chip blue"></span> <span id="legendBlue">Blue ×1</span></li>
+          <li><span class="chip teal"></span> <span id="legendPower">Power-Up</span></li>
+        </ul>
+      </div>
+
+      <div class="box">
+        <h3 class="titleWithIcon">
+          <svg viewBox="0 0 24 24"><path d="M7 3v18l5-3 5 3V3z"/></svg>
+          <span id="lbTitle">Leaderboard (Local)</span>
+        </h3>
+
+        <div class="lbFilters">
+          <select id="lbFilterDiff" class="select">
+            <option value="">All difficulties</option>
+            <option value="easy">Easy</option>
+            <option value="normal">Normal</option>
+            <option value="hard">Hard</option>
+          </select>
+          <input id="lbFilterSeed" placeholder="Seed (YYYYMMDD)" />
+        </div>
+
+        <ol id="leaderboard" class="leaderboard"></ol>
+      </div>
+    </aside>
+  </main>
+
+  <script src="js/game.js?v=2.1"></script>
+</body>
+</html>
