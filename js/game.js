@@ -24,9 +24,9 @@ function init(){
   // --- Topbar sizing & canvas resize ---
   const topbar = document.getElementById("topbar");
 
-  /* ===== Dropdown fixed-position (ổn định, không kẹt góc) ===== */
+/* ===== Dropdown controller (fixed-position, auto-close, single-open) ===== */
+(function setupDropdowns(){
   function positionMenuByButton(btnEl, menuEl, alignRight = true){
-    // Tính kích thước menu (kể cả khi đang ẩn)
     const prevVis = menuEl.style.visibility;
     const prevDisp = menuEl.style.display;
     menuEl.style.visibility = "hidden";
@@ -38,17 +38,13 @@ function init(){
 
     const br = btnEl.getBoundingClientRect();
     const margin = 6;
-
     const top  = Math.min(window.innerHeight - mh - margin, br.bottom + 4);
     let left;
     if (alignRight){
-      // bám mép phải của nút
-      left = Math.min(window.innerWidth - mw - margin, br.right - mw);
+      left = Math.min(window.innerWidth - mw - margin, br.right - mw); // bám mép phải
     } else {
-      // bám mép trái của nút
-      left = Math.max(margin, Math.min(br.left, window.innerWidth - mw - margin));
+      left = Math.max(margin, Math.min(br.left, window.innerWidth - mw - margin)); // bám mép trái
     }
-
     menuEl.style.position = "fixed";
     menuEl.style.left     = left + "px";
     menuEl.style.top      = top  + "px";
@@ -56,44 +52,70 @@ function init(){
     menuEl.style.zIndex   = "1000";
   }
 
-  function setupDropdownFixed(wrapperId, buttonSel, menuSel, alignRight = true){
+  function closeAll(exceptWrap){
+    document.querySelectorAll(".dropdown.open").forEach(w=>{
+      if (w !== exceptWrap){
+        const m = w.querySelector(".menu, .menu.mods");
+        w.classList.remove("open");
+        if (m){
+          m.style.display = "";
+          m.style.left = m.style.top = m.style.position = "";
+        }
+      }
+    });
+  }
+
+  function wireDropdown(wrapperId, btnSel, menuSel, {alignRight=true, closeOnItemClick=false}={}){
     const wrap = document.getElementById(wrapperId);
     if (!wrap) return;
-    const btn  = wrap.querySelector(buttonSel);
+    const btn  = wrap.querySelector(btnSel);
     const menu = wrap.querySelector(menuSel);
     if (!btn || !menu) return;
 
-    const open = ()=> {
+    const open = ()=>{
+      closeAll(wrap);
       wrap.classList.add("open");
+      menu.style.display = "block";
       positionMenuByButton(btn, menu, alignRight);
-      menu.style.display = "block";    // ép hiển thị, không phụ thuộc CSS
     };
-    const close = ()=> {
+    const close = ()=>{
       wrap.classList.remove("open");
-      menu.style.display = "";         // trả về theo CSS
-      menu.style.left = menu.style.top = menu.style.position = ""; // dọn inline
+      menu.style.display = "";
+      menu.style.left = menu.style.top = menu.style.position = "";
     };
 
-    btn.addEventListener("click", (e)=>{
+    btn.addEventListener("click",(e)=>{
       e.stopPropagation();
       wrap.classList.contains("open") ? close() : open();
     });
 
-    document.addEventListener("click", (e)=>{
+    document.addEventListener("click",(e)=>{
       if (!wrap.contains(e.target) && wrap.classList.contains("open")) close();
+    }, true);
+
+    document.addEventListener("keydown",(e)=>{
+      if (e.key === "Escape" && wrap.classList.contains("open")) close();
     });
 
-    window.addEventListener("resize", ()=>{
-      if (wrap.classList.contains("open")) positionMenuByButton(btn, menu, alignRight);
-    });
-    window.addEventListener("orientationchange", ()=>{
-      if (wrap.classList.contains("open")) positionMenuByButton(btn, menu, alignRight);
-    });
+    const reposition = ()=>{ if (wrap.classList.contains("open")) positionMenuByButton(btn, menu, alignRight); };
+    window.addEventListener("resize", reposition);
+    window.addEventListener("orientationchange", reposition);
+
+    // Language: click item sẽ đóng; Modifiers: tick không đóng
+    if (closeOnItemClick){
+      menu.addEventListener("click",(e)=>{
+        const li = e.target.closest("li,button,[data-close]");
+        if (li) closeAll();
+      });
+    }
   }
-  // Kích hoạt cho 2 menu: ngôn ngữ & modifiers (phải khớp DOM hiện tại của bạn)
-  setupDropdownFixed("langDropdown", "button", "#langMenu", true);
-  setupDropdownFixed("modsDropdown", "button", ".menu.mods", true);
-  /* ===== /Dropdown fixed-position ===== */
+
+  // Gắn cho 2 menu (khớp DOM hiện có trong index.html)
+  wireDropdown("langDropdown", "#langBtn", "#langMenu", {alignRight:true, closeOnItemClick:true});
+  wireDropdown("modsDropdown",  "button",   ".menu.mods", {alignRight:true, closeOnItemClick:false});
+})(); 
+/* ===== /Dropdown controller ===== */
+
 
   function applyTopbar(){
     const h = topbar ? topbar.offsetHeight : 64;
@@ -114,30 +136,36 @@ function init(){
   addEventListener("load", applyTopbar);
 
 function resizeCanvas(){
-  const rect = canvas.getBoundingClientRect();
-  const cs = getComputedStyle(canvas);
-  border.l = parseFloat(cs.borderLeftWidth)  || 0;
-  border.r = parseFloat(cs.borderRightWidth) || 0;
-  border.t = parseFloat(cs.borderTopWidth)   || 0;
-  border.b = parseFloat(cs.borderBottomWidth)|| 0;
+  const container = document.querySelector(".stageBox") || canvas.parentElement || document.body;
+  const cs = getComputedStyle(container);
+  const availW = container.clientWidth  - (parseFloat(cs.paddingLeft)||0) - (parseFloat(cs.paddingRight)||0);
+  const availH = container.clientHeight - (parseFloat(cs.paddingTop)||0)  - (parseFloat(cs.paddingBottom)||0);
 
-  const innerW = rect.width  - border.l - border.r;
-  const innerH = rect.height - border.t - border.b;
-  const sx = innerW / LOGICAL_W, sy = innerH / LOGICAL_H;
-  scale = Math.min(sx, sy);
+  const sx = availW / LOGICAL_W;
+  const sy = availH / LOGICAL_H;
 
-  // CSS size – khớp tỉ lệ, không méo
+  // ====== CHỌN CHẾ ĐỘ SCALE ======
+  const FIT_WIDTH = true;    // đặt true để luôn chơi được hết theo chiều ngang
+  scale = FIT_WIDTH ? Math.max(0, sx) : Math.max(0, Math.min(sx, sy));
+
   const cssW = Math.floor(LOGICAL_W * scale);
   const cssH = Math.floor(LOGICAL_H * scale);
   canvas.style.width  = cssW + "px";
   canvas.style.height = cssH + "px";
 
-  // Bitmap theo DPR – nét
-  canvas.width  = Math.floor(LOGICAL_W * scale * DPR);
-  canvas.height = Math.floor(LOGICAL_H * scale * DPR);
-  ctx.setTransform(scale * DPR, 0, 0, scale * DPR, 0, 0);
-}
+  const deviceScale = scale * DPR;
+  canvas.width  = Math.floor(LOGICAL_W * deviceScale);
+  canvas.height = Math.floor(LOGICAL_H * deviceScale);
+  ctx.setTransform(deviceScale, 0, 0, deviceScale, 0, 0);
 
+  const csCanvas = getComputedStyle(canvas);
+  border.l = parseFloat(csCanvas.borderLeftWidth)  || 0;
+  border.r = parseFloat(csCanvas.borderRightWidth) || 0;
+  border.t = parseFloat(csCanvas.borderTopWidth)   || 0;
+  border.b = parseFloat(csCanvas.borderBottomWidth)|| 0;
+
+  canvas.style.pointerEvents = "auto";
+}
 
 
   resizeCanvas();
@@ -250,16 +278,15 @@ function resizeCanvas(){
     localStorage.setItem("mecha_lang", l);
   }
   (function initLang(){
-    const saved = localStorage.getItem("mecha_lang") || "en";
-    setLang(saved);
-    const dd = Q("langDropdown"), btn = Q("langBtn"), menu = Q("langMenu");
-    btn?.addEventListener("click",()=>dd.classList.toggle("open"));
-    menu?.addEventListener("click",(e)=>{
-      const li = e.target.closest("li");
-      if (li){ setLang(li.dataset.lang); dd.classList.remove("open"); }
-    });
-    document.addEventListener("click",(e)=>{ if(!dd?.contains(e.target)) dd?.classList.remove("open"); });
-  })();
+  const saved = localStorage.getItem("mecha_lang") || "en";
+  setLang(saved);
+  const menu = Q("langMenu");
+  menu?.addEventListener("click",(e)=>{
+    const li = e.target.closest("li");
+    if (li && li.dataset.lang){ setLang(li.dataset.lang); }
+  });
+})();
+
 
   /* ---------- Audio (WebAudio): SFX & Music layers ---------- */
   let audioCtx=null,audioReady=false, sfxGain=null, musicGain=null;
@@ -599,11 +626,6 @@ function startMusicLoop(){
     });
   });
 
-  (function(){
-    const dd = document.getElementById("modsDropdown");
-    dd?.querySelector("button")?.addEventListener("click",()=>dd.classList.toggle("open"));
-    document.addEventListener("click",(e)=>{ if(!dd?.contains(e.target)) dd?.classList.remove("open"); });
-  })();
 
   startBtn?.addEventListener("click", async()=>{ await initAudioIfNeeded(); await showCountdown(); primeSpawns(); start(); });
   pauseBtn?.addEventListener("click", ()=> state.running=false);
