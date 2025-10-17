@@ -21,7 +21,8 @@ html, body {
 
 :root{
   --topbar-h: 64px;
-  --panel-w: 320px;
+  /* Panel co theo màn hình: min 220px, thường ~24vw, max 320px */
+  --panel-w: clamp(220px, 24vw, 320px);
   --gap: 14px;
   --border: #1d2440;
   --panel-bg: #0e1424cc;
@@ -32,7 +33,7 @@ html, body {
   --great: #ffa53b;
   --perfect: #ff5b5b;
 }
-
+html{ font-size: clamp(14px, 1.6vw, 16px); }
 /* ---------- Topbar ---------- */
 .topbar{
   height: var(--topbar-h);
@@ -107,19 +108,21 @@ html, body {
 .modsTitle{ font-weight:700; color:#cfe5ff; margin-bottom:4px; }
 .check{ display:flex; align-items:center; gap:8px; color:#eaf1ff; }
 
-/* ==== Layout 3 cột – giữa co đúng bằng bề rộng canvas ==== */
+/* ==== Layout 3 cột: trái & phải cố định (co bằng clamp), giữa chiếm hết ==== */
 .layout{
   display: grid;
-  grid-template-columns: var(--panel-w) minmax(0,1fr) var(--panel-w); /* giữa = 1fr */
+  grid-template-columns: var(--panel-w) minmax(0, 1fr) var(--panel-w);
+  grid-template-areas: "left stage right";
   gap: var(--gap);
   padding: var(--gap);
   margin-top: 6px;
   height: calc(100vh - var(--topbar-h) - var(--gap)*2);
   width: 100%;
-  overflow: hidden;      /* chặn cuộn ngang của toàn trang */
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
+
+/* Panel chung */
 .panel{
   background: var(--panel-bg);
   border: 1px solid var(--border);
@@ -127,16 +130,18 @@ html, body {
   padding: 12px;
   box-shadow: 0 12px 40px rgba(0,0,0,.35);
   height: 100%;
-  overflow: hidden;      /* mặc định KHÔNG cuộn */
+  overflow: hidden;
   min-width: 0;
 }
 
-/* Chỉ panel bên phải cuộn dọc (leaderboard dài) */
+/* Panel right không đè lên stage */
 .panel.right{
+  position: relative;
+  z-index: 1;     /* thấp hơn canvas (z=2) */
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  scrollbar-gutter: stable; /* giữ bố cục khi hiện thanh cuộn */
+  scrollbar-gutter: stable;
 }
 .panel.left .stat{
   display:flex; align-items:center; justify-content:space-between;
@@ -155,31 +160,47 @@ html, body {
 .mini{ opacity:.8; font-size:12px; }
 .miniNote.ok{ color:#63ffa1; font-size:12px; }
 
-/* ---------- Stage ---------- */
-/* Cột giữa (stage) không ép min-width để khỏi đẩy tạo khe trống */
+/* Stage container */
+/* Stage: vẫn overflow-y để fit-width hoạt động, nhưng ẩn scrollbar mọi trình duyệt */
 .stage{
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   height: 100%;
-  min-width: 0;          /* QUAN TRỌNG: tránh sinh khoảng trống giữa cột */
+  min-width: 0;
+
+  overflow-x: hidden;
+  overflow-y: auto;          /* vẫn cuộn dọc */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+
+  /* Ẩn scrollbar (Firefox, IE/Edge cũ) */
+  scrollbar-width: none;     /* Firefox */
+  -ms-overflow-style: none;  /* IE/Edge Legacy */
+}
+/* Ẩn scrollbar (Chrome/Safari/Edge Chromium) */
+.stage::-webkit-scrollbar{
+  width: 0;
+  height: 0;
+  display: none;
+}
+.stageBox{
+  width: 100%;
+  padding: 10px;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
 }
 
-.stageBox {
-  position: relative; width: 100%; height: 100%;
-  padding: 10px; border-radius: 12px;
-  background: linear-gradient(90deg, #0b1226 0%, #0c142a 100%);
-  border:1px solid var(--border);
-  box-shadow: 0 24px 60px rgba(0,0,0,45) inset;
-}
 
-/* Canvas 9:16 – fit height, keep ratio */
-/* Canvas luôn fit cột giữa, không tạo overflow */
+/* Canvas luôn trên cùng trong stage */
 #gameCanvas{
+  position: relative;
+  z-index: 2;
   display: block;
-  height: 100%;
   width: auto;
+  height: auto;
   max-width: 100%;
   max-height: 100%;
   aspect-ratio: 9/16;
@@ -292,4 +313,46 @@ body.fever .feverLogo{ opacity:1; transform: translateY(0) scale(1); }
   display:inline-flex; align-items:center; gap:4px;
   padding:2px 6px; border-radius:8px; font-size:12px; line-height:1;
   border:1px solid #2b2f44; background:#101828;
+}
+
+/* ===== Responsive: giữ 3 cột, chỉ co kích thước ===== */
+
+/* Tablet vừa */
+@media (max-width: 820px){
+  :root{
+    /* panel hẹp lại, gap nhỏ lại */
+    --panel-w: clamp(160px, 22vw, 220px);
+    --gap: 10px;
+    --topbar-h: 56px;
+  }
+  html{ font-size: clamp(13px, 1.5vw, 15px); }
+  #topbar .controls{ gap: 8px; }
+  #topbar .btn, #topbar .select, #topbar .field{ padding: 6px 8px; }
+}
+
+/* Điện thoại lớn */
+@media (max-width: 600px){
+  :root{
+    --panel-w: clamp(140px, 20vw, 200px);
+    --gap: 8px;
+    --topbar-h: 52px;
+  }
+  html{ font-size: clamp(12px, 1.4vw, 14px); }
+  #topbar .controls{ gap: 6px; }
+  #topbar .btn, #topbar .select, #topbar .field{ padding: 5px 7px; }
+  /* ẩn bớt chữ dài trong thanh công cụ để đỡ tràn */
+  #topbar .field span.label,
+  #topbar .select span.label{ display: none; }
+}
+
+/* Điện thoại nhỏ */
+@media (max-width: 480px){
+  :root{
+    --panel-w: clamp(120px, 18vw, 180px);
+    --gap: 6px;
+    --topbar-h: 50px;
+  }
+  html{ font-size: clamp(11px, 1.3vw, 13px); }
+  #topbar .controls{ gap: 4px; }
+  #topbar .btn, #topbar .select, #topbar .field{ padding: 4px 6px; }
 }
