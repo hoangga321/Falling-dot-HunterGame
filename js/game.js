@@ -211,9 +211,9 @@ function resizeCanvas(){
   };
   // tốc độ & kích thước base
   const DIFF = {
-    easy  :{ baseSpeed:170, radius:28, spawn:1, lives:6 },
-    normal:{ baseSpeed:200, radius:24, spawn:1, lives:5 },
-    hard  :{ baseSpeed:240, radius:22, spawn:2, lives:3 }
+    easy  :{ baseSpeed:100, radius:28, spawn:1, lives:6 },
+    normal:{ baseSpeed:150, radius:24, spawn:1, lives:5 },
+    hard  :{ baseSpeed:200, radius:22, spawn:2, lives:3 }
   };
   const BASE_COLORS=[{name:"red",hex:"#ff5b5b",weight:3},{name:"orange",hex:"#ffa53b",weight:2},{name:"blue",hex:"#45d7ff",weight:1}];
   const CB_COLORS  =[ {name:"gold",hex:"#ffd166",weight:3},{name:"green",hex:"#06d6a0",weight:2},{name:"blue2",hex:"#118ab2",weight:1} ];
@@ -971,3 +971,4 @@ function startMusicLoop(){
   updateHearts(); updateHUD();
   document.addEventListener("keydown",(e)=>{ if(e.key.toLowerCase()==="d") debug=!debug; });
 }
+
