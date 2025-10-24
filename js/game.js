@@ -199,7 +199,7 @@ function resizeCanvas(){
   const CONFIG = {
     START_TIME: 60,
     START_LIVES_DEFAULT: 5, // sẽ override theo difficulty
-    x  
+    MAX_CONCURRENT: 5,
     MAX_COMBO_MUL: 2.0,
     COMBO_DECAY: 1.5,
     FEVER_GAIN: { perfect:14, great:8, good:4 },
@@ -211,7 +211,7 @@ function resizeCanvas(){
   };
   // tốc độ & kích thước base
   const DIFF = {
-    easy  :{ baseSpeed:90, radius:28, spawn:1, lives:6 },
+    easy  :{ baseSpeed:900, radius:28, spawn:1, lives:6 },
     normal:{ baseSpeed:130, radius:24, spawn:1, lives:5 },
     hard  :{ baseSpeed:190, radius:22, spawn:2, lives:3 }
   };
@@ -547,7 +547,8 @@ function startMusicLoop(){
     const y=(opts.y==null)?-r:opts.y;
     const pal=opts.power?POWER_COLORS:currentColors();
     const col=pal[Math.floor(rand(0,pal.length))];
-    state.dots.push({x,y,r,color:col.hex,weight:col.weight||1,type:opts.type||"dot",speed,hp:opts.hp||0, vx:opts.vx||0, maxhp:opts.maxhp});
+    state.dots.push({x,y,r,color:col.hex,weight:col.weight||1,
+      type:opts.type||"dot",speed,hp:opts.hp||0, vx:opts.vx||0, maxhp:opts.maxhp});
   }
   function spawnFormationLine(n=5){
     const margin=24, totalW=LOGICAL_W-2*margin;
@@ -581,7 +582,7 @@ function startMusicLoop(){
     const cols=6, step=LOGICAL_W/(cols+1), dir=Math.random()<.5?1:-1;
     for(let i=0;i<cols;i++){
       const x = dir>0? (i+1)*step : (LOGICAL_W - (i+1)*step);
-      spawnDot({x, y:-70 - i*18, r:20, vx: dir*40});
+      spawnDot({x, y:-80 - i*18, r:20, vx: dir*40});
     }
     flashBanner("RAIN");
   }
@@ -590,8 +591,8 @@ function startMusicLoop(){
     const cx=LOGICAL_W/2, tiers=3, gap=46;
     for(let t=0;t<tiers;t++){
       const off= (t+1);
-      spawnDot({x:cx-gap*off, y:-30 - t*22, r:20});
-      spawnDot({x:cx+gap*off, y:-30 - t*22, r:20});
+      spawnDot({x:cx-gap*off, y:-40 - t*22, r:20});
+      spawnDot({x:cx+gap*off, y:-40 - t*22, r:20});
     }
     flashBanner("V");
   }
@@ -619,7 +620,8 @@ function startMusicLoop(){
     const tierMul = tier==="perfect"?1.5 : tier==="great"?1.2 : 1.0;
     const feverMul= (state.feverTime>0)?1.5:1.0;
     state.score += Math.floor(base*weight*tierMul*state.comboMul*feverMul);
-    scoreEl.textContent = state.score; scoreEl.classList.add("bump"); setTimeout(()=>scoreEl.classList.remove("bump"),180);
+    scoreEl.textContent = state.score; scoreEl.classList.add("bump"); 
+    setTimeout(()=>scoreEl.classList.remove("bump"),180);
   }
   function updateHUD(){
     timeEl.textContent = Math.ceil(Math.max(0,state.time));
@@ -983,6 +985,4 @@ function startMusicLoop(){
   updateHearts(); updateHUD();
   document.addEventListener("keydown",(e)=>{ if(e.key.toLowerCase()==="d") debug=!debug; });
 }
-
-
 
