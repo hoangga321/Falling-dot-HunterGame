@@ -211,7 +211,7 @@ function resizeCanvas(){
   };
   // tốc độ & kích thước base
   const DIFF = {
-    easy  :{ baseSpeed:900, radius:28, spawn:1, lives:6 },
+    easy  :{ baseSpeed:90, radius:28, spawn:1, lives:6 },
     normal:{ baseSpeed:130, radius:24, spawn:1, lives:5 },
     hard  :{ baseSpeed:190, radius:22, spawn:2, lives:3 }
   };
