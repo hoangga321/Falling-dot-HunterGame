@@ -310,6 +310,18 @@ function resizeCanvas(){
   }
   sfxVol?.addEventListener("input", updateVolumes);
   musicVol?.addEventListener("input", updateVolumes);
+    muteToggle?.addEventListener("change", () => {
+    if (muteToggle.checked) {
+      // Mute: đưa cả hai gain về 0
+      if (sfxGain)   sfxGain.gain.value   = 0;
+      if (musicGain) musicGain.gain.value = 0;
+    } else {
+      // Unmute: khởi tạo audio nếu chưa có, rồi áp lại theo slider
+      initAudioIfNeeded();
+      updateVolumes();
+    }
+  });
+
 
   // Nhạc nền nhẹ nhàng: pad êm + nhịp rất nhẹ; layer2 (lead) chỉ nổi khi FEVER
 function startMusicLoop(){
@@ -971,4 +983,5 @@ function startMusicLoop(){
   updateHearts(); updateHUD();
   document.addEventListener("keydown",(e)=>{ if(e.key.toLowerCase()==="d") debug=!debug; });
 }
+
 
