@@ -199,7 +199,7 @@ function resizeCanvas(){
   const CONFIG = {
     START_TIME: 60,
     START_LIVES_DEFAULT: 5, // sẽ override theo difficulty
-    MAX_CONCURRENT: 5,
+    x  
     MAX_COMBO_MUL: 2.0,
     COMBO_DECAY: 1.5,
     FEVER_GAIN: { perfect:14, great:8, good:4 },
@@ -211,9 +211,9 @@ function resizeCanvas(){
   };
   // tốc độ & kích thước base
   const DIFF = {
-    easy  :{ baseSpeed:100, radius:28, spawn:1, lives:6 },
-    normal:{ baseSpeed:150, radius:24, spawn:1, lives:5 },
-    hard  :{ baseSpeed:200, radius:22, spawn:2, lives:3 }
+    easy  :{ baseSpeed:90, radius:28, spawn:1, lives:6 },
+    normal:{ baseSpeed:130, radius:24, spawn:1, lives:5 },
+    hard  :{ baseSpeed:190, radius:22, spawn:2, lives:3 }
   };
   const BASE_COLORS=[{name:"red",hex:"#ff5b5b",weight:3},{name:"orange",hex:"#ffa53b",weight:2},{name:"blue",hex:"#45d7ff",weight:1}];
   const CB_COLORS  =[ {name:"gold",hex:"#ffd166",weight:3},{name:"green",hex:"#06d6a0",weight:2},{name:"blue2",hex:"#118ab2",weight:1} ];
@@ -581,7 +581,7 @@ function startMusicLoop(){
     const cols=6, step=LOGICAL_W/(cols+1), dir=Math.random()<.5?1:-1;
     for(let i=0;i<cols;i++){
       const x = dir>0? (i+1)*step : (LOGICAL_W - (i+1)*step);
-      spawnDot({x, y:-80 - i*18, r:20, vx: dir*40});
+      spawnDot({x, y:-70 - i*18, r:20, vx: dir*40});
     }
     flashBanner("RAIN");
   }
@@ -590,8 +590,8 @@ function startMusicLoop(){
     const cx=LOGICAL_W/2, tiers=3, gap=46;
     for(let t=0;t<tiers;t++){
       const off= (t+1);
-      spawnDot({x:cx-gap*off, y:-40 - t*22, r:20});
-      spawnDot({x:cx+gap*off, y:-40 - t*22, r:20});
+      spawnDot({x:cx-gap*off, y:-30 - t*22, r:20});
+      spawnDot({x:cx+gap*off, y:-30 - t*22, r:20});
     }
     flashBanner("V");
   }
@@ -983,5 +983,6 @@ function startMusicLoop(){
   updateHearts(); updateHUD();
   document.addEventListener("keydown",(e)=>{ if(e.key.toLowerCase()==="d") debug=!debug; });
 }
+
 
 
