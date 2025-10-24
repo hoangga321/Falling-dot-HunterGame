@@ -215,6 +215,25 @@ function resizeCanvas(){
     normal:{ baseSpeed:130, radius:24, spawn:1, lives:5 },
     hard  :{ baseSpeed:190, radius:22, spawn:2, lives:3 }
   };
+  // === Tuning cho mọi "formation" đặc biệt ===
+const SPECIAL_TUNE = {
+  speedMul   : 0.75,  // tốc rơi ↓ 25% cho dot của formation
+  vxMul      : 0.80,  // nếu có tốc ngang (vx) ↓ 20%
+  speedLevelMul     : 0.03,   // ↓ từ 0.05 (tăng tốc theo level nhẹ hơn)
+  feverSpeedMul     : 1.00,   // ↓ từ 1.20 (FEVER không tăng tốc, hoặc đặt 1.05 nếu muốn)
+  feverSpawnMul     : 0.60,   // FEVER: giảm xác suất spawn xuống 60%
+  maxSpeedMul       : 1.35,   // trần tốc độ: <= 1.35 * baseSpeed
+  spawnGapMs        : 260,    // khoảng cách tối thiểu giữa 2 lần spawn (ms)
+  formationCooldown : 900,    // tối thiểu 0.9s giữa 2 formation đặc biệt
+  concurrentCap     : (typeof MAX_CONCURRENT==='number'?MAX_CONCURRENT:5),
+  feverCapDelta     : -2   ,   // FEVER: giảm trần đồng thời thêm 2 bóng
+  countMul   : 0.70,  // số lượng dot trong formation ↓ 30%
+};
+// helper giảm count
+function specialCount(n){
+  return Math.max(1, Math.floor(n * SPECIAL_TUNE.countMul));
+}
+
   const BASE_COLORS=[{name:"red",hex:"#ff5b5b",weight:3},{name:"orange",hex:"#ffa53b",weight:2},{name:"blue",hex:"#45d7ff",weight:1}];
   const CB_COLORS  =[ {name:"gold",hex:"#ffd166",weight:3},{name:"green",hex:"#06d6a0",weight:2},{name:"blue2",hex:"#118ab2",weight:1} ];
   const POWER_COLORS=[{type:"freeze",name:"teal",hex:"#00e3d8"},{type:"time",name:"teal",hex:"#00e3d8"},{type:"bomb",name:"teal",hex:"#00e3d8"}];
@@ -508,53 +527,143 @@ function startMusicLoop(){
   /* ---------- Spawner ---------- */
   const spawner = {
     t:0, budget:0, cooldown:0, grace:8,
-    desired(){ const base=(applyModifiersTo(DIFF[state.difficulty])).spawn; return Math.min(CONFIG.MAX_CONCURRENT, base + Math.floor((state.level-1)/4)); },
-    rate(){ const want=this.desired(); const feverBoost=state.feverTime>0?0.4:0.0; return (0.75 + 0.11*(state.level-1)) + feverBoost + (want-1)*0.1; },
+    desired(){
+  const base = (applyModifiersTo(DIFF[state.difficulty])).spawn
+             + Math.floor((state.level-1)/4);
+  let want = Math.max(1, base);
+
+  // FEVER: giảm 30% lượng đồng thời
+  if (state.feverTime > 0) want = Math.floor(want * 0.7);
+
+  // Dùng cap từ SPECIAL_TUNE (FEVER giảm thêm)
+  const cap = (SPECIAL_TUNE.concurrentCap ?? CONFIG.MAX_CONCURRENT)
+            + (state.feverTime > 0 ? (SPECIAL_TUNE.feverCapDelta || 0) : 0);
+  return Math.max(1, Math.min(want, cap));
+}
+,
+    rate(){
+  const want = this.desired();
+  const base = 0.55 + 0.09*(state.level-1) + (want-1)*0.08; // dịu hơn bản cũ
+  const feverMul = state.feverTime > 0 ? (SPECIAL_TUNE.feverSpawnMul || 0.6) : 1;
+  return base * feverMul;
+}
+,
     tick(dt){
       this.t+=dt; if(this.cooldown>0) this.cooldown-=dt; if(this.grace>0) this.grace=Math.max(0,this.grace-dt);
       this.budget += this.rate(dt) * dt;
 
       const want=this.desired();
-      while(this.budget>=1 && state.dots.length<want){ spawnDot(); this.budget-=1; }
+      // throttle spawn theo thời gian
+if (!state._lastSpawn) state._lastSpawn = 0;
+const now = performance.now();
+const minGap = state.feverTime > 0
+  ? (SPECIAL_TUNE.spawnGapMs + 80)
+  :  SPECIAL_TUNE.spawnGapMs;
+
+      while (this.budget >= 1 && state.dots.length < want) {
+  if (now - state._lastSpawn < minGap) break; // chặn dồn dập
+  spawnDot();
+  this.budget -= 1;
+  state._lastSpawn = now;
+}
+
 
       // Pattern injection
       const inFever = state.feverTime>0;
-      if(this.grace===0 && this.cooldown<=0){
-        if(inFever){
-          const r=Math.random();
-          if(r<0.20) spawnFeverArc(); else if(r<0.40) spawnFeverZigzag(); else if(r<0.60) spawnFeverBurst();
-          else if(r<0.80) spawnFormationCircleRotate(); else spawnFormationSpiral();
-          this.cooldown = 2.4; this.budget = Math.max(0, this.budget - 1.2);
-        }else{
-          const r=Math.random();
-          if(r<0.25) spawnFormationLine((4+(Math.random()*1.5))|0);
-          else if(r<0.5) spawnFormationRainDiagonal();
-          else if(r<0.75) spawnFormationMultiV();
-          else spawnFormationCircleRotate();
-          this.cooldown = 3.2; this.budget = Math.max(0, this.budget - 2);
-        }
-      }
+if (this.grace===0 && this.cooldown<=0) {
+
+  
+  const haveSpecial = state.dots.some(d => d.special);
+  if (haveSpecial) { 
+    this.cooldown = 0.6;           // đợi thêm 0.6s rồi kiểm lại
+    return;
+  }
+
+  if (inFever) {
+    const r = Math.random();
+    if (r < 0.20)      spawnFeverArc();
+    else if (r < 0.40) spawnFeverZigzag();
+    else if (r < 0.60) spawnFeverBurst();
+    else if (r < 0.80) spawnFormationCircleRotate();
+    else               spawnFormationSpiral();
+
+    // ❗ dùng formationCooldown bạn đã cấu hình
+    this.cooldown = (SPECIAL_TUNE.formationCooldown || 900) / 1000;
+    this.budget = Math.max(0, this.budget - 1.2);
+
+  } else {
+    const r = Math.random();
+    if (r < 0.25)      spawnFormationLine((4+(Math.random()*1.5))|0);
+    else if (r < 0.50) spawnFormationRainDiagonal();
+    else if (r < 0.75) spawnFormationMultiV();
+    else               spawnFormationCircleRotate();
+
+    // ❗ đồng bộ cooldown ở nhánh thường
+    this.cooldown = (SPECIAL_TUNE.formationCooldown || 900) / 1000;
+  }
+}
     }
   };
 
   /* ---------- Entities & formations ---------- */
-  function spawnDot(opts={}){
-    const diff=applyModifiersTo(DIFF[state.difficulty]);
-    const baseR=diff.radius*(1-Math.min(0.6,(state.level-1)*0.04));
-    const r=opts.r||rand(baseR*0.9,baseR*1.1);
-    const speed=(opts.speed||diff.baseSpeed*(1+(state.level-1)*0.05))*(state.feverTime>0?1.2:1);
-    const x=opts.x||rand(r+10,LOGICAL_W-r-10);
-    const y=(opts.y==null)?-r:opts.y;
-    const pal=opts.power?POWER_COLORS:currentColors();
-    const col=pal[Math.floor(rand(0,pal.length))];
-    state.dots.push({x,y,r,color:col.hex,weight:col.weight||1,
-      type:opts.type||"dot",speed,hp:opts.hp||0, vx:opts.vx||0, maxhp:opts.maxhp});
-  }
+  function spawnDot(opts = {}) {
+  const diff = applyModifiersTo(DIFF[state.difficulty]);
+
+  // Fallback nếu bạn chưa khai báo TUNE / SPECIAL_TUNE ở ngoài
+  const _T  = (typeof TUNE === "object") ? TUNE : {
+    speedLevelMul : 0.03,   // ↓ tăng tốc theo level (mặc định 0.05 → 0.03)
+    feverSpeedMul : 1.00,   // ↓ FEVER không tăng tốc (có thể 1.05 nếu muốn)
+    maxSpeedMul   : 1.35    // trần tốc độ = 1.35 * baseSpeed
+  };
+  const _ST = (typeof SPECIAL_TUNE === "object") ? SPECIAL_TUNE : {
+    speedMul : 0.75,        // dot của formation đặc biệt chậm hơn
+    vxMul    : 0.80         // tốc ngang (nếu có) cũng chậm lại
+  };
+
+  const baseR = diff.radius * (1 - Math.min(0.6, (state.level - 1) * 0.04));
+  const r     = opts.r || rand(baseR * 0.9, baseR * 1.1);
+
+  // --- Tính tốc độ rơi (đã “nerf” level/FEVER + trần tốc độ)
+  let speed = (opts.speed || diff.baseSpeed);
+  speed *= (1 + (state.level - 1) * _T.speedLevelMul);
+  if (state.feverTime > 0) speed *= _T.feverSpeedMul;
+  if (opts.special)        speed *= _ST.speedMul;  // formation đặc biệt
+  speed = Math.min(speed, diff.baseSpeed * _T.maxSpeedMul); // trần
+
+  const x = opts.x || rand(r + 10, LOGICAL_W - r - 10);
+  const y = (opts.y == null) ? -r : opts.y;
+
+  const pal = opts.power ? POWER_COLORS : currentColors();
+  const col = pal[Math.floor(rand(0, pal.length))];
+
+  // --- Giảm tốc ngang cho formation đặc biệt (nếu có)
+  let vx = opts.vx || 0;
+  if (opts.special && vx !== 0) vx *= _ST.vxMul;
+
+  state.dots.push({
+    x, y, r,
+    color: col.hex,
+    weight: col.weight || 1,
+    type: opts.type || "dot",
+    speed,
+    hp: opts.hp || 0,
+    vx,
+    maxhp: opts.maxhp,
+    special: !!opts.special
+  });
+}
+
+
   function spawnFormationLine(n=5){
-    const margin=24, totalW=LOGICAL_W-2*margin;
-    for(let i=0;i<n;i++){ const x=margin + totalW*(i+0.5)/n; spawnDot({x, y:-30, r:22}); }
-    flashBanner("WAVE");
+  n = Math.max(1, Math.floor(n * (SPECIAL_TUNE.countMul ?? 0.7))); // ↓ số lượng
+  const margin=24, totalW=LOGICAL_W-2*margin;
+  for(let i=0;i<n;i++){
+    const x=margin + totalW*(i+0.5)/n;
+    spawnDot({x, y:-30, r:22, special:true}); // ← đánh dấu special
   }
+  flashBanner("WAVE");
+}
+
   // Circle rotate
   function spawnFormationCircleRotate(){
     const cx=LOGICAL_W/2, cy=-40, R=120, n=10, ang0=rand(0,Math.PI*2);
@@ -562,45 +671,48 @@ function startMusicLoop(){
       const a=ang0 + i*(2*Math.PI/n);
       const x=cx + Math.cos(a)*R;
       const y=cy + Math.sin(a)*R*0.4 - i*8;
-      spawnDot({x,y,r:20, vx: Math.cos(a+Math.PI/2)*30});
+      spawnDot({ x,y,r:20, special:true, vx: Math.cos(a+Math.PI/2)*30 });
     }
     flashBanner("CIRCLE");
   }
   // Spiral
   function spawnFormationSpiral(){
-    const cx=LOGICAL_W/2, turns=1.5, n=14;
-    for(let i=0;i<n;i++){
-      const t=i/n, a=t*turns*2*Math.PI, R=30+ t*180;
-      const x=cx + Math.cos(a)*R;
-      const y=-60 - i*18;
-      spawnDot({x,y,r:18});
-    }
-    flashBanner("SPIRAL");
+  const cx=LOGICAL_W/2, turns=1.5;
+  let n=14; n = Math.max(1, Math.floor(n * (SPECIAL_TUNE.countMul ?? 0.7)));
+  for(let i=0;i<n;i++){
+    const t=i/n, a=t*turns*2*Math.PI, R=30+ t*180;
+    const x=cx + Math.cos(a)*R, y=-60 - i*18;
+    spawnDot({x,y,r:18, special:true});
   }
+  flashBanner("SPIRAL");
+}
   // Rain diagonal
   function spawnFormationRainDiagonal(){
-    const cols=6, step=LOGICAL_W/(cols+1), dir=Math.random()<.5?1:-1;
-    for(let i=0;i<cols;i++){
-      const x = dir>0? (i+1)*step : (LOGICAL_W - (i+1)*step);
-      spawnDot({x, y:-80 - i*18, r:20, vx: dir*40});
-    }
-    flashBanner("RAIN");
+  let cols=6; cols = Math.max(1, Math.floor(cols * (SPECIAL_TUNE.countMul ?? 0.7)));
+  const step=LOGICAL_W/(cols+1), dir=Math.random()<.5?1:-1;
+  for(let i=0;i<cols;i++){
+    const x = dir>0? (i+1)*step : (LOGICAL_W - (i+1)*step);
+    spawnDot({ x, y:-80 - i*18, r:20, special:true, vx: dir*40 });
   }
+  flashBanner("RAIN");
+}
+
   // Multi-tier V
   function spawnFormationMultiV(){
     const cx=LOGICAL_W/2, tiers=3, gap=46;
     for(let t=0;t<tiers;t++){
       const off= (t+1);
-      spawnDot({x:cx-gap*off, y:-40 - t*22, r:20});
-      spawnDot({x:cx+gap*off, y:-40 - t*22, r:20});
+      spawnDot({ x:cx-gap*off, y:-40 - t*22, r:20, special:true });  // ⬅️ thêm special:true
+      spawnDot({ x:cx+gap*off, y:-40 - t*22, r:20, special:true });  // ⬅️ thêm special:true
+
     }
     flashBanner("V");
   }
 
   // Fever patterns
-  function spawnFeverArc(){ const cx=LOGICAL_W/2, R=LOGICAL_W*0.38, n=8; for(let i=0;i<n;i++){ const a=(-Math.PI/3) + (i/(n-1))*(2*Math.PI/3); const x=cx + R*Math.cos(a); const y=-40 + 60*i/n; spawnDot({x,y,r:20}); } }
-  function spawnFeverZigzag(){ const cols=5, step=LOGICAL_W/(cols+1); let dir=1, y=-20; for(let row=0;row<3;row++){ for(let c=1;c<=cols;c++){ const x=(dir>0)? c*step : (LOGICAL_W - c*step); spawnDot({x, y:y-row*24, r:20}); } dir*=-1; y-=24; } }
-  function spawnFeverBurst(){ const n=10; for(let i=0;i<n;i++) spawnDot({x:rand(40,LOGICAL_W-40), y:rand(-80,-10), r:20}); }
+  function spawnFeverArc(){ const cx=LOGICAL_W/2, R=LOGICAL_W*0.38, n=8; for(let i=0;i<n;i++){ const a=(-Math.PI/3) + (i/(n-1))*(2*Math.PI/3); const x=cx + R*Math.cos(a); const y=-40 + 60*i/n; spawnDot({ x, y, r:20, special:true }); } }
+  function spawnFeverZigzag(){ const cols=5, step=LOGICAL_W/(cols+1); let dir=1, y=-20; for(let row=0;row<3;row++){ for(let c=1;c<=cols;c++){ const x=(dir>0)? c*step : (LOGICAL_W - c*step); spawnDot({ x, y: y - row*24, r:20, special:true }); } dir*=-1; y-=24; } }
+  function spawnFeverBurst(){ const n=10; for(let i=0;i<n;i++) spawnDot({ x: rand(40,LOGICAL_W-40), y: rand(-80,-10), r:20, special:true }); }
 
   function flashBanner(txt){ banner.textContent=txt; banner.classList.remove("hidden"); setTimeout(()=>banner.classList.add("hidden"),900); }
 
